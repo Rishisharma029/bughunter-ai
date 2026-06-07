@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  bughunter-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bughunter_app
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - JWT_SECRET=production_enterprise_secret_key_889977
+      - REFRESH_SECRET=production_enterprise_refresh_secret_key_112233
+    volumes:
+      - bughunter-data:/app/backend/data
+    restart: unless-stopped
+
+volumes:
+  bughunter-data:
