@@ -38,25 +38,70 @@ export default function ChatAssistant({ contextIssue, backendUrl }) {
     const token = localStorage.getItem('accessToken');
 
     try {
-      const response = await fetch(`${backendUrl}/api/chat/assistant`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          message: userMsg,
-          scanId: contextIssue ? contextIssue.scan_id : null,
-          fileContext: contextIssue ? contextIssue.file_path : null
-        })
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to contact AI');
+      let data;
+      let isMock = false;
+      try {
+        const response = await fetch(`${backendUrl}/api/chat/assistant`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            message: userMsg,
+            scanId: contextIssue ? contextIssue.scan_id : null,
+            fileContext: contextIssue ? contextIssue.file_path : null
+          })
+        });
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to contact AI');
+          }
+        } else {
+          isMock = true;
+        }
+      } catch (fetchErr) {
+        isMock = true;
       }
 
-      setMessages(prev => [...prev, { sender: 'bot', text: data.reply }]);
+      if (isMock) {
+        let reply = `[Demo Mode] Received message: "${userMsg}". Here is a security recommendation:
+        
+- Always pin GitHub Actions to full SHA hashes rather than mutable tags.
+- Run Docker containers as a non-root user (e.g. USER appuser).
+- Encrypt Terraform states and do not expose open security ports (like 0.0.0.0/0).`;
+
+        const query = userMsg.toLowerCase();
+        if (query.includes('n+1') || query.includes('database')) {
+          reply = `[Demo Mode] **N+1 Query Resolution**:
+An N+1 query vulnerability occurs when an application executes N additional database queries to fetch related child records after retrieving the parent records.
+
+**Remediation**:
+- Implement eager loading (e.g. \`include\` in Sequelize, \`with\` in Eloquent, or \`select_related\` in Django).
+- Perform a single consolidated SQL JOIN query.`;
+        } else if (query.includes('injection') || query.includes('sql') || query.includes('xss')) {
+          reply = `[Demo Mode] **Injection Vulnerability Mitigation**:
+Injection (SQL, Command, or XSS) happens when raw user input is concatenated directly into SQL strings, system commands, or HTML outputs without serialization.
+
+**Remediation**:
+- Always use **Parameterized Queries** / Prepared Statements.
+- Use libraries like DOMPurify for XSS protection.
+- Implement strict input whitelist validation.`;
+        } else if (query.includes('secret') || query.includes('credentials') || query.includes('key') || query.includes('password')) {
+          reply = `[Demo Mode] **Secrets Exposure Prevention**:
+Sensitive items like API keys, client credentials, and JWT secrets should never be checked into version control.
+
+**Remediation**:
+- Store credentials in environment variables loaded dynamically via secret vaults.
+- Use a robust \`.gitignore\` file.
+- Scan repositories in CI/CD using tools like \`gitleaks\`.`;
+        }
+        setMessages(prev => [...prev, { sender: 'bot', text: reply }]);
+      } else {
+        setMessages(prev => [...prev, { sender: 'bot', text: data.reply }]);
+      }
     } catch (err) {
       setMessages(prev => [...prev, { sender: 'bot', text: `Sorry, I encountered an error: ${err.message}` }]);
     } finally {
